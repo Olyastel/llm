@@ -1,0 +1,16 @@
+id,name,color
+1,Text Generation,#0000FF
+2,Image Generation,#008000
+3,Speech Recognition,#FF0000
+4,Conversational AI,#FFFF00
+5,Research,#000000
+6,Education,#800080
+7,Text Summarization,#FFA500
+8,Sentiment Analysis,#00FFFF
+9,Content Moderation,#FFFFFF
+10,Data Analysis,#FFD700
+11,Translation,#FF00FF
+12,Text Classification,#A52A2A
+13,Answering Questions,#008080
+14,Video Generation,#C0C0C0
+15,Creative Writing,#006400

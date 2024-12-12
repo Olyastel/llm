@@ -1,0 +1,34 @@
+CREATE TABLE IF NOT EXISTS LLM (
+	id SERIAL PRIMARY KEY,
+	name TEXT NOT NULL,
+	description TEXT,
+	created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+
+CREATE TABLE IF NOT EXISTS Availability (
+	id SERIAL PRIMARY KEY,
+	status BOOLEAN NOT NULL DEFAULT true,
+	url TEXT NOT NULL,
+	llm_id INTEGER REFERENCES LLM(id),
+	created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE Tag (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    color TEXT
+);
+
+CREATE TABLE Tariff (
+    id SERIAL PRIMARY KEY,
+    price INTEGER NOT NULL,
+    llm_id INTEGER REFERENCES LLM(id),
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE TariffTag (
+    id SERIAL PRIMARY KEY,
+    tariff_id INTEGER REFERENCES Tariff(id),
+    tag_id INTEGER REFERENCES Tag(id)
+);
