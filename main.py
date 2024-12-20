@@ -1,108 +1,112 @@
 from fastapi import FastAPI
-from typing import Union
+from typing import List
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from pydantic import BaseModel
-from typing import List
 from fastapi.middleware.cors import CORSMiddleware
 
-def load_from_db_llm_without_vpn(name_of_table: str, name_of_table_availability: str):
-    with psycopg2.connect('postgres://postgres:Pfqrfjkz32@localhost:5432/LLM', cursor_factory=RealDictCursor) as conn:
-        cur = conn.cursor()
+def get_db_connection():
+    return psycopg2.connect('postgres://postgres:Pfqrfjkz32@localhost:5432/LLM', cursor_factory=RealDictCursor)
 
-        query = f'SELECT llm.name ' \
-                f'FROM {name_of_table}, {name_of_table_availability} ' \
-                f'WHERE llm.id = availability.llm_id ' \
-                f'AND availability.status = true ' \
-                f'ORDER BY llm_id ASC;'
-                #GROUP BY _
-                #HAVING
-        #print(query)
+def load_from_db_llm_without_vpn(name_of_table: str, name_of_table_availability: str):
+    with get_db_connection() as conn:
+        cur = conn.cursor()
+        query = f'''
+            SELECT llm.name
+            FROM {name_of_table} AS llm
+            JOIN {name_of_table_availability} AS availability
+            ON llm.id = availability.llm_id
+            WHERE availability.status = TRUE
+            ORDER BY llm_id ASC;
+        '''
         cur.execute(query)
-        return(cur.fetchall())
+        return cur.fetchall()
 
 def load_from_db_llm_with_price_higher_than(price: int):
-    with (psycopg2.connect('postgres://postgres:Pfqrfjkz32@localhost:5432/LLM', cursor_factory=RealDictCursor) as
-          conn):
+    with get_db_connection() as conn:
         cur = conn.cursor()
-
-        query = f'SELECT llm.name, llm.description ' \
-                f'FROM llm, tariff ' \
-                f'WHERE llm.id = tariff.llm_id ' \
-                f'AND tariff.price > {price} ' \
-                f'ORDER BY llm.id ASC;'
+        query = f'''
+            SELECT llm.name, llm.description
+            FROM llm
+            JOIN tariff ON llm.id = tariff.llm_id
+            WHERE tariff.price > {price}
+            ORDER BY llm.id ASC;
+        '''
         cur.execute(query)
-        return(cur.fetchall())
+        return cur.fetchall()
 
 def load_from_db_llm_with_price_and_vpn(price: int, vpn: str):
-    with psycopg2.connect('postgres://postgres:Pfqrfjkz32@localhost:5432/LLM', cursor_factory=RealDictCursor) as conn:
+    with get_db_connection() as conn:
         cur = conn.cursor()
-
-        query = f'SELECT llm.name ' \
-                f'FROM llm, tariff, availability ' \
-                f'WHERE llm.id = tariff.llm_id ' \
-                f'AND llm.id = availability.llm_id' \
-                f'AND tariff.price = {price} ' \
-                f'AND availability.status = {vpn}' \
-                f'ORDER BY llm.name ASC;'
+        query = f'''
+            SELECT llm.name
+            FROM llm
+            JOIN tariff ON llm.id = tariff.llm_id
+            JOIN availability ON llm.id = availability.llm_id
+            WHERE tariff.price = {price}
+            AND availability.status = {vpn}
+            ORDER BY llm.name ASC;
+        '''
         cur.execute(query)
-        return(cur.fetchall())
+        return cur.fetchall()
 
 def load_from_db_llm_with_tag(tag: str):
-    with psycopg2.connect('postgres://postgres:Pfqrfjkz32@localhost:5432/LLM', cursor_factory=RealDictCursor) as conn:
+    with get_db_connection() as conn:
         cur = conn.cursor()
-
-        query = f'SELECT llm.name ' \
-                f'FROM llm, tariff, tarifftag, tag ' \
-                f'WHERE llm.id = tariff.llm_id ' \
-                f'AND tariff.id = tarifftag.tariff_id ' \
-                f'AND tarifftag.tag_id = tag.id ' \
-                f'AND tag.name = \'{tag}\' ' \
-                f'ORDER BY llm.name ASC;'
+        query = f'''
+            SELECT llm.name
+            FROM llm
+            JOIN tariff ON llm.id = tariff.llm_id
+            JOIN tarifftag ON tariff.id = tarifftag.tariff_id
+            JOIN tag ON tarifftag.tag_id = tag.id
+            WHERE tag.name = '{tag}'
+            ORDER BY llm.name ASC;
+        '''
         cur.execute(query)
-        return(cur.fetchall())
+        return cur.fetchall()
 
-
-app = FastAPI(title='LLM', summary='ryjdxf')
+app = FastAPI(title='LLM API', summary='API для работы с LLM')
 
 app.add_middleware(
-CORSMiddleware,
-allow_origins=["*"],
-allow_methods=["*"],
-allow_credentials=True,
-allow_headers=["*"],)
-
-@app.get("/by_price")
-def get_llm_by_price(price: int):
-    query = ("SELECT llm.name, llm.description FROM llm, tarrif " 
-    f"WHERE llm.id = tarrif.llm_id AND tarrif.price > {price};")
-
-@app.get("/llm with higher price than")
-def get_llm(price: int):
-    return [load_from_db_llm_with_price_higher_than(price)]
-
-@app.get("/llm without VPN")
-def get_llm(name_of_table: str, name_of_table_availability: str):
-    return [load_from_db_llm_without_vpn(name_of_table, name_of_table_availability)]
-
-@app.get("/llm with price and VPN")
-def get_llm(price: int, vpn: str):
-    return [load_from_db_llm_with_price_and_vpn(price, vpn)]
-
-@app.get("/llm with tag")
-def get_llm(tag: str):
-    return [load_from_db_llm_with_tag(tag)]
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_credentials=True,
+    allow_headers=["*"],
+)
 
 class LlmItem(BaseModel):
     id: int
     name: str
     description: str = None
 
+@app.get("/llm_by_price")
+def get_llm_by_price(price: int):
+    return load_from_db_llm_with_price_higher_than(price)
+
+@app.get("/llm_without_vpn")
+def get_llm_without_vpn(name_of_table: str, name_of_table_availability: str):
+    return load_from_db_llm_without_vpn(name_of_table, name_of_table_availability)
+
+@app.get("/llm_with_price_and_vpn")
+def get_llm_with_price_and_vpn(price: int, vpn: str):
+    return load_from_db_llm_with_price_and_vpn(price, vpn)
+
+@app.get("/llm_with_tag")
+def get_llm_with_tag(tag: str):
+    return load_from_db_llm_with_tag(tag)
+
 @app.post("/llm_info")
-def add_new_llm_items(items: list[LlmItem]):
-    with psycopg2.connect('postgres://postgres:Pfqrfjkz32@localhost:5432/LLM', cursor_factory=RealDictCursor) as conn:
+def add_new_llm_items(items: List[LlmItem]):
+    with get_db_connection() as conn:
         cur = conn.cursor()
         for item in items:
-            query = f'INSERT INTO llm(id, name, description) VALUES (%s, %s, %s);'
+            query = '''
+                INSERT INTO llm (id, name, description)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (id) DO NOTHING;  # Чтобы избежать дублирования по id
+            '''
             cur.execute(query, (item.id, item.name, item.description))
-    return {"message": "added"}
+        conn.commit()
+    return {"message": "Items added successfully"}
+
