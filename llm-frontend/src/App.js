@@ -1,4 +1,4 @@
-import './App.css';
+import './App.css'; 
 import { useState } from "react";
 import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
@@ -7,48 +7,41 @@ function App() {
   const [price, setPrice] = useState(0);
   const [values, setValues] = useState([]);
 
-  // Improved changePriceValue to handle price correctly
   const changePriceValue = (e) => {
-    const newPrice = e.target.value;
-    setPrice(newPrice);  // Update price state
-    console.log(newPrice);  // Logging updated price for debugging
+    setPrice(e.target.value); 
   };
 
-  // Improved handleButton to fix URL template literal
   const handleButton = () => {
     const url = `http://127.0.0.1:8000/by_price?price=${price}`;
     fetch(url, {
       method: "GET",
     })
       .then((response) => response.json())
-      .then((data) => setValues(data))  // Update values with fetched data
-      .catch((error) => console.error("Error fetching data:", error));  // Error handling
+      .then((data) => setValues(data))  
+      .catch((error) => console.error("Error fetching data:", error));
   };
 
   return (
     <div className="App">
       <div id="filter">
+        <h1>Введите цену</h1>  {/* Title */}
         <TextField
-          id="outlined-basic"
+          id="price-input"
           label="Введите цену"
           variant="outlined"
           type="number"
-          value={price}  // Bind the price state to the input value
+          value={price}
           onChange={changePriceValue}
+          fullWidth
         />
-        <span>Введите цену</span>
-        <input 
-          id="price-field"
-          type="number" 
-          value={price}  // Bind to price state as well
-          onChange={changePriceValue}
-        />
-        <Button variant="contained" onClick={handleButton}>Применить</Button> {/* Use MUI Button for consistency */}
-      </div>
-
-      <div>
-        <TextField id="outlined-basic" label="Outlined" variant="outlined" />
-        <Button variant="contained" onClick={handleButton}>Применить</Button>
+        <Button
+          variant="contained"
+          onClick={handleButton}
+          fullWidth
+          style={{ marginTop: '20px' }}
+        >
+          Применить
+        </Button>
       </div>
 
       <div id="table">

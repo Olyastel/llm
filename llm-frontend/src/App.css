@@ -1,5 +1,62 @@
-#filter {
-    display:flex;
-    margin: 2%;
-    gap: 2%;
-}
+.App {
+    font-family: Arial, sans-serif;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100vh; 
+  }
+  
+  #filter {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;  
+    max-width: 500px;  
+    margin-bottom: 20px;
+  }
+  
+  #filter h1 {
+    font-size: 24px;
+    margin-bottom: 20px;
+    text-align: center; 
+  }
+  
+  #price-input {
+    margin-bottom: 20px;
+  }
+  
+  #table {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 800px;
+  }
+  
+
+  .row {
+    display: flex;
+    justify-content: space-between;
+    width: 100%; 
+    padding: 10px;
+    border: 1px solid #ddd;
+    margin-bottom: 10px;
+  }
+  
+  .row.header {
+    font-weight: bold;
+    background-color: #f0f0f0;
+  }
+  
+  .row p {
+    margin: 0;
+    padding: 0;
+    width: 45%;  
+    text-align: left;
+  }
+  
+ 
+  button {
+    width: 100%;  
+  }
+  
