@@ -1,9 +1,10 @@
-with psycopg2.connect() as conn:
- from fastapi import FastAPI
+from fastapi import FastAPI
 from typing import Union
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from pydantic import BaseModel
+from typing import List
+from fastapi.middleware.cors import CORSMiddleware
 
 def load_from_db_llm_without_vpn(name_of_table: str, name_of_table_availability: str):
     with psycopg2.connect('postgres://postgres:Pfqrfjkz32@localhost:5432/LLM', cursor_factory=RealDictCursor) as conn:
@@ -62,18 +63,19 @@ def load_from_db_llm_with_tag(tag: str):
         return(cur.fetchall())
 
 
-app = FastAPI(title='LLM')
+app = FastAPI(title='LLM', summary='ryjdxf')
 
+app.add_middleware(
+CORSMiddleware,
+allow_origins=["*"],
+allow_methods=["*"],
+allow_credentials=True,
+allow_headers=["*"],)
 
-@app.get("/hello")
-def get_hello_info(name: str, age: int= 10):
-    # return {"name": name, "age": age, "Hello": "World"}
-    return [name, age]
-
-@app.get("/calculate")
-def to_calculate(a: int, b: int):
-    c = a + b
-    return {"result": c}
+@app.get("/by_price")
+def get_llm_by_price(price: int):
+    query = ("SELECT llm.name, llm.description FROM llm, tarrif " 
+    f"WHERE llm.id = tarrif.llm_id AND tarrif.price > {price};")
 
 @app.get("/llm with higher price than")
 def get_llm(price: int):

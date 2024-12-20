@@ -1,4 +1,3 @@
-
 import psycopg2
 
 def load_from_db_llm():
