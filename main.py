@@ -1,71 +1,104 @@
-from fastapi import FastAPI
-from typing import List
+from fastapi import FastAPI, HTTPException, BackgroundTasks
+from typing import List, Optional
+from pydantic import BaseModel
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+from fastapi.concurrency import run_in_threadpool
+import logging
+import json
+
+app = FastAPI(title='LLM API', summary='API для работы с LLM')
+
+logger = logging.getLogger("uvicorn")
+logger.setLevel(logging.DEBUG)
 
 def get_db_connection():
     return psycopg2.connect('postgres://postgres:Pfqrfjkz32@localhost:5432/LLM', cursor_factory=RealDictCursor)
 
-def load_from_db_llm_without_vpn(name_of_table: str, name_of_table_availability: str):
-    with get_db_connection() as conn:
-        cur = conn.cursor()
-        query = f'''
-            SELECT llm.name
-            FROM {name_of_table} AS llm
-            JOIN {name_of_table_availability} AS availability
-            ON llm.id = availability.llm_id
-            WHERE availability.status = TRUE
-            ORDER BY llm_id ASC;
-        '''
-        cur.execute(query)
-        return cur.fetchall()
+class LlmItem(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    price: Optional[int] = None
+    status: Optional[bool] = None
 
-def load_from_db_llm_with_price_higher_than(price: int):
-    with get_db_connection() as conn:
-        cur = conn.cursor()
-        query = f'''
-            SELECT llm.name, llm.description
-            FROM llm
-            JOIN tariff ON llm.id = tariff.llm_id
-            WHERE tariff.price > {price}
-            ORDER BY llm.id ASC;
-        '''
-        cur.execute(query)
-        return cur.fetchall()
+@app.get("/")
+def read_root():
+    return {"message": "API работает"}
 
-def load_from_db_llm_with_price_and_vpn(price: int, vpn: str):
-    with get_db_connection() as conn:
-        cur = conn.cursor()
+@app.get("/llm_filtered")
+def get_filtered_llm(
+    price: Optional[int] = None, 
+    vpn: Optional[bool] = None, 
+    tag: Optional[str] = None, 
+    description_contains: Optional[str] = None,
+    page: int = 1, 
+    limit: int = 10
+):
+    try:
+        conditions = []
+        if price is not None:
+            conditions.append(f"tariff.price = %s")
+        if vpn is not None:
+            conditions.append(f"availability.status = %s")
+        if tag is not None:
+            conditions.append(f"tag.name = %s")
+        if description_contains is not None:
+            conditions.append(f"llm.description ILIKE %s")
+
+        where_clause = " AND ".join(conditions) if conditions else "1=1"
+        
+        params = []
+        if price is not None:
+            params.append(price)
+        if vpn is not None:
+            params.append(vpn)
+        if tag is not None:
+            params.append(tag)
+        if description_contains is not None:
+            params.append(f"%{description_contains}%")
+
         query = f'''
-            SELECT llm.name
+            SELECT llm.id, llm.name, llm.description, tariff.price, availability.status
             FROM llm
             JOIN tariff ON llm.id = tariff.llm_id
             JOIN availability ON llm.id = availability.llm_id
-            WHERE tariff.price = {price}
-            AND availability.status = {vpn}
-            ORDER BY llm.name ASC;
+            LEFT JOIN tarifftag ON tariff.id = tarifftag.tariff_id
+            LEFT JOIN tag ON tarifftag.tag_id = tag.id
+            WHERE {where_clause}
+            ORDER BY llm.name ASC
+            LIMIT %s OFFSET %s;
         '''
-        cur.execute(query)
-        return cur.fetchall()
 
-def load_from_db_llm_with_tag(tag: str):
-    with get_db_connection() as conn:
-        cur = conn.cursor()
-        query = f'''
-            SELECT llm.name
-            FROM llm
-            JOIN tariff ON llm.id = tariff.llm_id
-            JOIN tarifftag ON tariff.id = tarifftag.tariff_id
-            JOIN tag ON tarifftag.tag_id = tag.id
-            WHERE tag.name = '{tag}'
-            ORDER BY llm.name ASC;
-        '''
-        cur.execute(query)
-        return cur.fetchall()
+        params.extend([limit, (page - 1) * limit])
 
-app = FastAPI(title='LLM API', summary='API для работы с LLM')
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute(query, params)
+            result = cur.fetchall()
+
+        return result
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка при загрузке данных: {e}")
+
+async def get_data_from_pgsql(data):
+    return {"data": "example"}
+
+@app.get("/request")
+async def request_db(data, background_tasks: BackgroundTasks):
+    dict_of_result = await run_in_threadpool(get_data_from_pgsql, data)
+
+    def chunk_emitter():
+        chunk_size = 10
+        result = json.dumps(dict_of_result)
+        for i in range(0, len(result), chunk_size):
+            yield result[i:i + chunk_size]
+
+    headers = {'Content-Disposition': 'attachment; filename=data.json'}
+    return StreamingResponse(chunk_emitter(), headers=headers, media_type='application/json')
 
 app.add_middleware(
     CORSMiddleware,
@@ -75,38 +108,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-class LlmItem(BaseModel):
-    id: int
-    name: str
-    description: str = None
-
-@app.get("/llm_by_price")
-def get_llm_by_price(price: int):
-    return load_from_db_llm_with_price_higher_than(price)
-
-@app.get("/llm_without_vpn")
-def get_llm_without_vpn(name_of_table: str, name_of_table_availability: str):
-    return load_from_db_llm_without_vpn(name_of_table, name_of_table_availability)
-
-@app.get("/llm_with_price_and_vpn")
-def get_llm_with_price_and_vpn(price: int, vpn: str):
-    return load_from_db_llm_with_price_and_vpn(price, vpn)
-
-@app.get("/llm_with_tag")
-def get_llm_with_tag(tag: str):
-    return load_from_db_llm_with_tag(tag)
-
 @app.post("/llm_info")
 def add_new_llm_items(items: List[LlmItem]):
-    with get_db_connection() as conn:
-        cur = conn.cursor()
-        for item in items:
-            query = '''
-                INSERT INTO llm (id, name, description)
-                VALUES (%s, %s, %s)
-                ON CONFLICT (id) DO NOTHING;  # Чтобы избежать дублирования по id
-            '''
-            cur.execute(query, (item.id, item.name, item.description))
-        conn.commit()
-    return {"message": "Items added successfully"}
-
+    try:
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            for item in items:
+                query = '''
+                    INSERT INTO llm (name, description)
+                    VALUES (%s, %s)
+                    ON CONFLICT (name) DO NOTHING;
+                '''
+                cur.execute(query, (item.name, item.description))
+            conn.commit()
+        return {"message": "Items added successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка при добавлении данных: {e}")
